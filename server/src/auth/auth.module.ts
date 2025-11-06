@@ -15,11 +15,41 @@ import { User } from './entities/user.entity';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService): JwtModuleOptions => {
-        const expiresIn = configService.get<string>('JWT_EXPIRES_IN', '7d');
+        const accessTokenExpiresIn = configService.get<string>(
+          'JWT_ACCESS_EXPIRES_IN',
+          '24h',
+        );
         return {
-          secret: configService.get<string>('JWT_SECRET', 'your-secret-key-change-in-production'),
+          secret: configService.get<string>(
+            'JWT_SECRET',
+            'your-secret-key-change-in-production',
+          ),
           signOptions: {
-            expiresIn: expiresIn as any,
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            expiresIn: accessTokenExpiresIn as any,
+          },
+        };
+      },
+      inject: [ConfigService],
+    }),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService): JwtModuleOptions => {
+        const refreshTokenExpiresIn = configService.get<string>(
+          'JWT_REFRESH_EXPIRES_IN',
+          '7d',
+        );
+        const refreshSecret = configService.get<string>('JWT_REFRESH_SECRET');
+        if (!refreshSecret) {
+          throw new Error(
+            'JWT_REFRESH_SECRET is not defined in environment variables',
+          );
+        }
+        return {
+          secret: refreshSecret,
+          signOptions: {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            expiresIn: refreshTokenExpiresIn as any,
           },
         };
       },
@@ -31,4 +61,3 @@ import { User } from './entities/user.entity';
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}
-
