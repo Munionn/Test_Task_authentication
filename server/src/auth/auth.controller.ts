@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   Controller,
   Post,
@@ -13,6 +12,13 @@ import {
   UseFilters,
   BadRequestException,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiCookieAuth,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -22,18 +28,62 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthExceptionFilter } from './filters/auth-exception.filter';
 
+@ApiTags('auth')
 @Controller('auth')
 @UseFilters(AuthExceptionFilter)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  @ApiOperation({ summary: 'Register a new user' })
+  @ApiResponse({
+    status: 201,
+    description: 'User successfully registered',
+    schema: {
+      type: 'object',
+      properties: {
+        user: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', example: 'uuid' },
+            email: { type: 'string', example: 'user@example.com' },
+            name: { type: 'string', example: 'John Doe' },
+            createdAt: { type: 'string', example: '2025-11-07T12:00:00.000Z' },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 409, description: 'User already exists' })
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login user' })
+  @ApiResponse({
+    status: 200,
+    description: 'User successfully logged in. Cookies are set automatically.',
+    schema: {
+      type: 'object',
+      properties: {
+        user: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', example: 'uuid' },
+            email: { type: 'string', example: 'user@example.com' },
+            name: { type: 'string', example: 'John Doe' },
+            createdAt: { type: 'string', example: '2025-11-07T12:00:00.000Z' },
+          },
+        },
+        message: { type: 'string', example: 'Login successful' },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
   async login(
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) response: Response,
@@ -86,11 +136,26 @@ export class AuthController {
       } catch {
         throw new BadRequestException('Failed to clear cookies');
       }
+      throw error;
     }
   }
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Refresh access token' })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Token refreshed successfully. New cookies are set automatically.',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Token refreshed successfully' },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
   async refresh(
     @Body() refreshTokenDto: RefreshTokenDto,
     @Res({ passthrough: true }) response: Response,
@@ -151,6 +216,20 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Logout user' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiCookieAuth('access_token')
+  @ApiResponse({
+    status: 200,
+    description: 'User successfully logged out. Cookies are cleared.',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', example: 'Logout successful' },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async logout(
     @Request() req: { user: { id: string } },
     @Res({ passthrough: true }) response: Response,
@@ -204,6 +283,23 @@ export class AuthController {
 
   @Get('profile')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get user profile' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiCookieAuth('access_token')
+  @ApiResponse({
+    status: 200,
+    description: 'User profile retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', example: 'uuid' },
+        email: { type: 'string', example: 'user@example.com' },
+        name: { type: 'string', example: 'John Doe' },
+        createdAt: { type: 'string', example: '2025-11-07T12:00:00.000Z' },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   getProfile(
     @Request() req: { user: { id: string; email: string; name: string } },
   ) {
@@ -216,6 +312,31 @@ export class AuthController {
 
   @Put('profile')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Update user profile' })
+  @ApiBearerAuth('JWT-auth')
+  @ApiCookieAuth('access_token')
+  @ApiResponse({
+    status: 200,
+    description: 'Profile updated successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        user: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', example: 'uuid' },
+            email: { type: 'string', example: 'user@example.com' },
+            name: { type: 'string', example: 'John Doe' },
+            createdAt: { type: 'string', example: '2025-11-07T12:00:00.000Z' },
+          },
+        },
+        message: { type: 'string', example: 'Profile updated successfully' },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 409, description: 'Email already exists' })
   async updateProfile(
     @Request() req: { user: { id: string } },
     @Body() updateUserDto: UpdateUserDto,
