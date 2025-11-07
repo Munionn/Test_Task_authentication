@@ -26,7 +26,7 @@ Full-stack authentication application with NestJS backend and Next.js frontend.
 ### 1. Clone the repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Munionn/Test_Task_authentication.git
 cd TestTaskAuthentication
 ```
 
