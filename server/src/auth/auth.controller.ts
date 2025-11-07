@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   Controller,
   Post,
@@ -9,6 +10,8 @@ import {
   Get,
   Put,
   Request,
+  UseFilters,
+  BadRequestException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
@@ -17,8 +20,10 @@ import { RegisterDto } from './dto/register.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { AuthExceptionFilter } from './filters/auth-exception.filter';
 
 @Controller('auth')
+@UseFilters(AuthExceptionFilter)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
@@ -33,27 +38,55 @@ export class AuthController {
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const result = await this.authService.login(loginDto);
-    response.cookie('access_token', result.access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      path: '/',
-    });
+    try {
+      if (!loginDto || !loginDto.email || !loginDto.password) {
+        throw new BadRequestException('Email and password are required');
+      }
 
-    response.cookie('refresh_token', result.refresh_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/',
-    });
+      const result = await this.authService.login(loginDto);
 
-    return {
-      user: result.user,
-      message: 'Login successful',
-    };
+      try {
+        response.cookie('access_token', result.access_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 24 * 60 * 60 * 1000, // 24 hours
+          path: '/',
+        });
+
+        response.cookie('refresh_token', result.refresh_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+          path: '/',
+        });
+      } catch {
+        throw new BadRequestException('Failed to set authentication cookies');
+      }
+
+      return {
+        user: result.user,
+        message: 'Login successful',
+      };
+    } catch (error) {
+      try {
+        response.clearCookie('access_token', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+        });
+        response.clearCookie('refresh_token', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+        });
+      } catch {
+        throw new BadRequestException('Failed to clear cookies');
+      }
+    }
   }
 
   @Post('refresh')
@@ -62,29 +95,57 @@ export class AuthController {
     @Body() refreshTokenDto: RefreshTokenDto,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const result = await this.authService.refreshAccessToken(
-      refreshTokenDto.refresh_token,
-    );
+    try {
+      if (!refreshTokenDto || !refreshTokenDto.refresh_token) {
+        throw new BadRequestException('Refresh token is required');
+      }
 
-    response.cookie('access_token', result.access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      path: '/',
-    });
+      const result = await this.authService.refreshAccessToken(
+        refreshTokenDto.refresh_token,
+      );
 
-    response.cookie('refresh_token', result.refresh_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/',
-    });
+      try {
+        response.cookie('access_token', result.access_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 24 * 60 * 60 * 1000, // 24 hours
+          path: '/',
+        });
 
-    return {
-      message: 'Token refreshed successfully',
-    };
+        response.cookie('refresh_token', result.refresh_token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+          path: '/',
+        });
+      } catch {
+        throw new BadRequestException('Failed to set authentication cookies');
+      }
+
+      return {
+        message: 'Token refreshed successfully',
+      };
+    } catch (error) {
+      try {
+        response.clearCookie('access_token', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+        });
+        response.clearCookie('refresh_token', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+        });
+      } catch {
+        // Ignore cookie clearing errors
+      }
+      throw error;
+    }
   }
 
   @Post('logout')
@@ -94,25 +155,51 @@ export class AuthController {
     @Request() req: { user: { id: string } },
     @Res({ passthrough: true }) response: Response,
   ) {
-    // Revoke refresh token from database
-    await this.authService.revokeRefreshToken(req.user.id);
+    try {
+      if (!req.user || !req.user.id) {
+        throw new BadRequestException('User information is missing');
+      }
 
-    // Clear cookies
-    response.clearCookie('access_token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-    });
+      await this.authService.revokeRefreshToken(req.user.id);
 
-    response.clearCookie('refresh_token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-    });
+      try {
+        response.clearCookie('access_token', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+        });
 
-    return { message: 'Logout successful' };
+        response.clearCookie('refresh_token', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+        });
+      } catch {
+        throw new BadRequestException('Failed to clear cookies');
+      }
+
+      return { message: 'Logout successful' };
+    } catch (error) {
+      try {
+        response.clearCookie('access_token', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+        });
+        response.clearCookie('refresh_token', {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+        });
+      } catch {
+        // Ignore
+      }
+      throw error;
+    }
   }
 
   @Get('profile')
@@ -120,6 +207,10 @@ export class AuthController {
   getProfile(
     @Request() req: { user: { id: string; email: string; name: string } },
   ) {
+    if (!req.user || !req.user.id) {
+      throw new BadRequestException('User information is missing');
+    }
+
     return req.user;
   }
 
@@ -129,6 +220,16 @@ export class AuthController {
     @Request() req: { user: { id: string } },
     @Body() updateUserDto: UpdateUserDto,
   ) {
+    if (!req.user || !req.user.id) {
+      throw new BadRequestException('User information is missing');
+    }
+
+    if (!updateUserDto || Object.keys(updateUserDto).length === 0) {
+      throw new BadRequestException(
+        'At least one field must be provided for update',
+      );
+    }
+
     const updatedUser = await this.authService.updateUser(
       req.user.id,
       updateUserDto,

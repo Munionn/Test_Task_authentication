@@ -41,17 +41,42 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     });
   }
 
-  async validate(payload: JwtPayload) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-    const user = (await this.authService.findById(payload.sub)) as {
+  async validate(
+    payload: JwtPayload,
+  ): Promise<{ id: string; email: string; name: string; createdAt: Date }> {
+    if (!payload || !payload.sub || !payload.email) {
+      throw new UnauthorizedException('Invalid token payload');
+    }
+
+    if (typeof payload.sub !== 'string' || typeof payload.email !== 'string') {
+      throw new UnauthorizedException('Invalid token payload format');
+    }
+
+    let user: {
       id: string;
       email: string;
       name: string;
       createdAt: Date;
     } | null;
-    if (!user) {
-      throw new UnauthorizedException('User not found');
+    try {
+      user = (await this.authService.findById(payload.sub)) as {
+        id: string;
+        email: string;
+        name: string;
+        createdAt: Date;
+      } | null;
+    } catch {
+      throw new UnauthorizedException('Failed to validate user');
     }
+
+    if (!user) {
+      throw new UnauthorizedException('User not found or has been deleted');
+    }
+
+    if (user.email !== payload.email) {
+      throw new UnauthorizedException('Token email mismatch');
+    }
+
     return user;
   }
 }
