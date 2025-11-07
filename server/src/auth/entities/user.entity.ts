@@ -19,7 +19,7 @@ export class User {
   @Column()
   name: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   refreshToken: string | null;
 
   @Column({ type: 'timestamp', nullable: true })
