@@ -51,11 +51,22 @@ export default function ProfilePage() {
       fetchProfile().catch((err) => {
         const errorMessages = getErrorMessages(err);
         setServerError(errorMessages);
-        // If fetch fails, redirect to login
-        router.push('/login');
+        // If fetch fails with 401, clear auth and redirect to login
+        if (err && typeof err === 'object' && 'response' in err) {
+          const axiosError = err as { response?: { status?: number } };
+          if (axiosError.response?.status === 401) {
+            // Token expired or invalid, clear auth state
+            logout().catch(() => {
+              // Ignore logout errors
+            });
+            router.push('/login');
+            return;
+          }
+        }
+        // For other errors, just show the error message
       });
     }
-  }, [hasHydrated, isAuthenticated, isLoading, user, router, fetchProfile]);
+  }, [hasHydrated, isAuthenticated, isLoading, user, router, fetchProfile, logout]);
 
   const handleLogout = async () => {
     try {

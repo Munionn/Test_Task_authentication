@@ -46,20 +46,20 @@ export class AuthController {
       const result = await this.authService.login(loginDto);
 
       try {
-        response.cookie('access_token', result.access_token, {
+        const isProduction = process.env.NODE_ENV === 'production';
+        const cookieOptions = {
           httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
+          secure: isProduction,
+          sameSite: isProduction ? ('none' as const) : ('lax' as const),
           maxAge: 24 * 60 * 60 * 1000, // 24 hours
           path: '/',
-        });
+        };
+
+        response.cookie('access_token', result.access_token, cookieOptions);
 
         response.cookie('refresh_token', result.refresh_token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
+          ...cookieOptions,
           maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-          path: '/',
         });
       } catch {
         throw new BadRequestException('Failed to set authentication cookies');
@@ -105,20 +105,20 @@ export class AuthController {
       );
 
       try {
-        response.cookie('access_token', result.access_token, {
+        const isProduction = process.env.NODE_ENV === 'production';
+        const cookieOptions = {
           httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
+          secure: isProduction,
+          sameSite: isProduction ? ('none' as const) : ('lax' as const),
           maxAge: 24 * 60 * 60 * 1000, // 24 hours
           path: '/',
-        });
+        };
+
+        response.cookie('access_token', result.access_token, cookieOptions);
 
         response.cookie('refresh_token', result.refresh_token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
+          ...cookieOptions,
           maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-          path: '/',
         });
       } catch {
         throw new BadRequestException('Failed to set authentication cookies');

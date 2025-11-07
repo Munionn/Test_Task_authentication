@@ -73,18 +73,17 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
         try {
           await authApi.logout();
+        } catch (error) {
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('Logout request failed, but clearing local state anyway:', error);
+          }
+        } finally {
           set({
             user: null,
             isAuthenticated: false,
             isLoading: false,
             error: null,
           });
-        } catch (error) {
-          set({
-            isLoading: false,
-            error: error instanceof Error ? error.message : 'Logout failed',
-          });
-          throw error;
         }
       },
 

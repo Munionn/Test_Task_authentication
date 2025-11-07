@@ -11,6 +11,39 @@ export const api = axios.create({
   },
 });
 
+// Add request interceptor to log requests (for debugging)
+api.interceptors.request.use(
+  (config) => {
+    // Log request details in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('API Request:', {
+        method: config.method,
+        url: config.url,
+        baseURL: config.baseURL,
+        withCredentials: config.withCredentials,
+      });
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      const isLogoutRequest = error.config?.url?.includes('/logout');
+      if (!isLogoutRequest) {
+        console.error('Unauthorized - token may be expired');
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export interface RegisterData {
   email: string;
   password: string;
